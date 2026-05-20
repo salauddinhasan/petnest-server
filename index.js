@@ -1,6 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
+
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const { auth } = require("./auth");
@@ -9,6 +10,7 @@ const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 dotenv.config();
 const app = express();
 app.use(cors());
+app.use(express.json());
 
 const port = process.env.PORT || 5000;
 
@@ -26,7 +28,7 @@ const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"));
 
 const verifyUser = async (req, res, next) => {
   const authHeader = req?.headers?.authorization;
-    // console.log("Token", authHeader);
+  // console.log("Token", authHeader);
 
   if (!authHeader) {
     return res.status(401).json({ message: "Unauthorized: No Token Provided" });
@@ -70,7 +72,7 @@ async function run() {
     });
 
     // only petnest data josn
-    app.get("/petnest/:petnestId", verifyUser , async (req, res) => {
+    app.get("/petnest/:petnestId", verifyUser, async (req, res) => {
       const { petnestId } = req.params;
       const query = { _id: new ObjectId(petnestId) };
       const result = await petnestCollection.findOne(query);
@@ -83,6 +85,18 @@ async function run() {
       const result = await curso.toArray();
 
       res.send(result);
+    });
+
+    
+    // mongodb te data add
+    app.post("/pets", async (req, res) => {
+      try {
+        const pet = req.body;
+        const result = await petnestCollection.insertOne(pet);
+        res.send(result);
+      } catch (error) {
+        res.status(500).json({ message: "Server Error" });
+      }
     });
 
     console.log(
