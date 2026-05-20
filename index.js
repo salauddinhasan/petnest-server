@@ -3,14 +3,17 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
+const { auth } = require("./auth");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
+
 dotenv.config();
 const app = express();
 app.use(cors());
+
 const port = process.env.PORT || 5000;
 
 const uri = process.env.MONGODB_URL;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -19,18 +22,45 @@ const client = new MongoClient(uri, {
   },
 });
 
+const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"));
+
+const verifyUser = async (req, res, next) => {
+  const authHeader = req?.headers?.authorization;
+    // console.log("Token", authHeader);
+
+  if (!authHeader) {
+    return res.status(401).json({ message: "Unauthorized: No Token Provided" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Unauthorized: Invalid Token Format" });
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+
+    // console.log("Verified User Payload:", payload);
+    req.user = payload;
+
+    next();
+  } catch (error) {
+    console.error("Token validation failed:", error.message);
+    return res
+      .status(403)
+      .json({ message: "Forbidden: Invalid or Expired Token" });
+  }
+};
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
 
     const db = client.db("petnest");
     const petnestCollection = db.collection("pets");
 
-
-    // all petnest data json 
+    // all petnest data json
 
     app.get("/petnest", async (req, res) => {
       const curso = petnestCollection.find();
@@ -39,15 +69,21 @@ async function run() {
       res.send(result);
     });
 
-    // only petnest data josn 
-
-    app.get('/petnest/:petnestId', async(req, res) => {
-      const {petnestId} = req.params
-      const query = {_id: new ObjectId(petnestId) };
+    // only petnest data josn
+    app.get("/petnest/:petnestId", verifyUser , async (req, res) => {
+      const { petnestId } = req.params;
+      const query = { _id: new ObjectId(petnestId) };
       const result = await petnestCollection.findOne(query);
       res.send(result);
-    })
+    });
 
+    // home pae 4 data ar jonno
+    app.get("/featured", async (req, res) => {
+      const curso = petnestCollection.find().limit(4);
+      const result = await curso.toArray();
+
+      res.send(result);
+    });
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
