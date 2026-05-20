@@ -123,7 +123,7 @@ async function run() {
         const result = await requestCollection.insertOne(newRequest);
         res.status(201).json({ success: true, result });
       } catch (error) {
-        console.error("Request API Error:", error.message);
+        // console.error("Request API Error:", error.message);
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
@@ -141,7 +141,7 @@ async function run() {
         const result = await requestCollection.find(query).toArray();
         res.json({ success: true, data: result });
       } catch (error) {
-        console.error("Get Requests Error:", error.message);
+        // console.error("Get Requests Error:", error.message);
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
@@ -163,22 +163,36 @@ async function run() {
         let result = await petnestCollection.find(query).toArray();
 
         if (result.length === 0) {
-          console.log(
-            " No specific email matched. Fetching default pets for fallback.",
-          );
+          // console.log(" No specific email matched. Fetching default pets for fallback.");
 
           result = await petnestCollection.find().limit(5).toArray();
         }
 
         res.json({ success: true, data: result });
       } catch (error) {
-        console.error("Get Listings Error:", error.message);
+        // console.error("Get Listings Error:", error.message);
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
 
     // delete
-    
+
+    app.delete("/pets/:id", verifyUser, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const query = { _id: new ObjectId(id) };
+        const result = await petnestCollection.deleteOne(query);
+
+        if (result.deletedCount === 1) {
+          res.json({ success: true, message: "Pet deleted successfully" });
+        } else {
+          res.status(404).json({ success: false, message: "Pet not found" });
+        }
+      } catch (error) {
+        // console.error("Delete Pet Error:", error.message);
+        res.status(500).json({ success: false, message: "Server Error" });
+      }
+    });
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
