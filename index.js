@@ -55,7 +55,7 @@ const verifyUser = async (req, res, next) => {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("petnest");
     const petnestCollection = db.collection("pets");
@@ -69,12 +69,12 @@ async function run() {
         const { search, species } = req.query;
         let query = {};
 
-        // ১. নাম দিয়ে সার্চ করার মঙ্গোডিবি লজিক ($regex)
+         
         if (search) {
           query.name = { $regex: search, $options: "i" }; 
         }
 
-        // ২. স্পিসিস/ক্যাটাগরি দিয়ে ফিল্টার করার লজিক ($in)
+        
         if (species) {
           const speciesArray = species.split(",");
           query.species = { $in: speciesArray };
@@ -337,9 +337,9 @@ async function run() {
 
 
 
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!",
-    );
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!",
+    // );
   } finally {
     // await client.close();
   }
