@@ -62,12 +62,29 @@ async function run() {
     const requestCollection = db.collection("adoption_requests");
 
     
+    
+    //  $regex  $in  
     app.get("/all-pets", async (req, res) => {
       try {
-        const curso = petnestCollection.find();
+        const { search, species } = req.query;
+        let query = {};
+
+        // ১. নাম দিয়ে সার্চ করার মঙ্গোডিবি লজিক ($regex)
+        if (search) {
+          query.name = { $regex: search, $options: "i" }; 
+        }
+
+        // ২. স্পিসিস/ক্যাটাগরি দিয়ে ফিল্টার করার লজিক ($in)
+        if (species) {
+          const speciesArray = species.split(",");
+          query.species = { $in: speciesArray };
+        }
+
+        const curso = petnestCollection.find(query);
         const result = await curso.toArray();
         res.send(result);
       } catch (error) {
+        console.error("MongoDB Search Error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
@@ -317,6 +334,8 @@ async function run() {
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
+
+
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
