@@ -340,6 +340,41 @@ async function run() {
       }
     });
 
+    // card edit
+    app.put("/pets/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const updatedData = req.body; 
+
+        
+        const query = { _id: new ObjectId(id) };
+
+         
+        const updateDoc = {
+          $set: {
+            name: updatedData.name,
+            breed: updatedData.breed,
+            category: updatedData.category,
+            age: updatedData.age,
+            image: updatedData.image || updatedData.petImage,
+             
+          },
+        };
+
+         
+        const result = await petnestCollection.updateOne(query, updateDoc);
+
+        if (result.matchedCount > 0) {
+          res.json({ success: true, message: "Pet updated successfully! " });
+        } else {
+          res.status(404).json({ success: false, message: "Pet not found" });
+        }
+      } catch (error) {
+        // console.error("Backend Edit Error:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+      }
+    });
+
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
