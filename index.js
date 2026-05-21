@@ -266,14 +266,13 @@ async function run() {
       }
     });
 
-    // request route 
+    // request route
     app.get("/pets/:id", async (req, res) => {
       try {
         const { id } = req.params;
 
-         
         const query = { _id: new ObjectId(id) };
-        const result = await petnestCollection.findOne(query);  
+        const result = await petnestCollection.findOne(query);
 
         if (!result) {
           return res
@@ -282,6 +281,60 @@ async function run() {
         }
 
         res.json(result);
+      } catch (error) {
+        res.status(500).json({ success: false, message: "Server Error" });
+      }
+    });
+
+    // Approve/Reject API
+    app.patch("/requests/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { status, petId } = req.body;
+
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: { status: status },
+        };
+
+        // ১. রিকোয়েস্টের স্ট্যাটাস আপডেট (Approved/Rejected)
+        const result = await requestCollection.updateOne(query, updateDoc);
+
+        // 🔥 ২. এইতো এখানে তোমার আসল কালেকশনের নাম 'petnestCollection' সেট করে দিলাম বস!
+        if (status === "approved" && petId && petId !== "undefined") {
+          await petnestCollection.updateOne(
+            { _id: new ObjectId(petId) },
+            { $set: { status: "Adopted" } },
+          );
+        }
+
+        if (result.modifiedCount > 0) {
+          res.json({
+            success: true,
+            message: `Request ${status} successfully!`,
+          });
+        } else {
+          res.json({ success: true, message: "Status already up to date" });
+        }
+      } catch (error) {
+        console.error("Backend Patch Error:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+      }
+    });
+
+    //  request get
+    app.get("/requests", async (req, res) => {
+      try {
+        const { petId } = req.query;
+
+        let query = {};
+        if (petId) {
+          query = { petId: petId };
+        }
+
+        const result = await requestCollection.find(query).toArray();
+
+        res.json({ success: true, data: result });
       } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
       }
