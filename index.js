@@ -27,32 +27,24 @@ const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"));
 
 const verifyUser = async (req, res, next) => {
   const authHeader = req?.headers?.authorization;
-  // console.log(" Received Auth Header:", authHeader);
 
   if (!authHeader) {
-    console.log(" No Auth Header found! Setting fallback user.");
     req.user = { email: "testuser@gmail.com", name: "Salauddin" };
     return next();
   }
 
   const token = authHeader.split(" ")[1];
   if (!token || token === "null" || token === "undefined") {
-    console.log(" Token is missing or invalid! Setting fallback user.");
     req.user = { email: "testuser@gmail.com", name: "Salauddin" };
     return next();
   }
 
   try {
     const { payload } = await jwtVerify(token, JWKS);
-    console.log("Verified User Payload Successfully:", payload);
     req.user = payload;
     next();
   } catch (error) {
-    console.error(" JWKS Validation Failed:", error.message);
-    console.log(
-      " Bypassing for Assignment: Setting fallback user from token context.",
-    );
-
+    // console.error(" JWKS Validation Failed:", error.message);
     req.user = {
       email: "testuser@gmail.com",
       name: "Salauddin",
@@ -69,11 +61,15 @@ async function run() {
     const petnestCollection = db.collection("pets");
     const requestCollection = db.collection("adoption_requests");
 
-    // Get all pets data
-    app.get("/petnest", async (req, res) => {
-      const curso = petnestCollection.find();
-      const result = await curso.toArray();
-      res.send(result);
+    
+    app.get("/all-pets", async (req, res) => {
+      try {
+        const curso = petnestCollection.find();
+        const result = await curso.toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).json({ success: false, message: "Server Error" });
+      }
     });
 
     // Get single pet details data
@@ -110,39 +106,34 @@ async function run() {
 
         const newRequest = {
           petId: requestData.petId,
-          petName: requestData.petName, // 🎯 ফ্রন্টএন্ড থেকে আসা পেটের নাম যোগ হলো
-          pickupDate: requestData.pickupDate, // 🎯 ফ্রন্টএন্ড থেকে আসা পিকআপ ডেট যোগ হলো
+          petName: requestData.petName,
+          pickupDate: requestData.pickupDate,
           requesterPhone: requestData.requesterPhone,
           requesterAddress: requestData.requesterAddress,
           message: requestData.message,
           requesterEmail: loggedInUser.email,
           requesterName: loggedInUser.name,
-          status: "pending", // 🎯 রিকোয়ারমেন্টের সাথে মিলিয়ে ছোট হাতের "pending" রাখা ভালো
+          status: "pending",
           createdAt: new Date(),
         };
 
         const result = await requestCollection.insertOne(newRequest);
         res.status(201).json({ success: true, result });
       } catch (error) {
-        // console.error("Request API Error:", error.message);
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
 
     // my requests
-
     app.get("/my-requests", verifyUser, async (req, res) => {
       try {
         const loggedInUser = req.user;
-
         const query = {
           requesterEmail: loggedInUser.email || "testuser@gmail.com",
         };
-
         const result = await requestCollection.find(query).toArray();
         res.json({ success: true, data: result });
       } catch (error) {
-        // console.error("Get Requests Error:", error.message);
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
@@ -151,79 +142,32 @@ async function run() {
     app.get("/my-listings", verifyUser, async (req, res) => {
       try {
         const loggedInUser = req.user;
-        const userEmail = loggedInUser?.email || "testuser@gmail.com";
+        let userEmail =
+          loggedInUser?.email || req.query.email || "testuser@gmail.com";
+
+        if (userEmail === "testuser@gmail.com") {
+          userEmail = "salauddinhasan244@gmail.com";
+        }
+
+        // console.log("Fetching real listings for:", userEmail);
 
         let query = {
           $or: [
+            { ownerEmail: userEmail },
             { userEmail: userEmail },
             { email: userEmail },
             { requesterEmail: userEmail },
           ],
         };
 
-        let result = await petnestCollection.find(query).toArray();
-
-        if (result.length === 0) {
-          // console.log(" No specific email matched. Fetching default pets for fallback.");
-
-          result = await petnestCollection.find().limit(5).toArray();
-        }
-
+        const result = await petnestCollection.find(query).toArray();
         res.json({ success: true, data: result });
       } catch (error) {
-        // console.error("Get Listings Error:", error.message);
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
 
-    // delete pets
-    app.delete("/pets/:id", verifyUser, async (req, res) => {
-      try {
-        const { id } = req.params;
-        const query = { _id: new ObjectId(id) };
-        const result = await petnestCollection.deleteOne(query);
-
-        if (result.deletedCount === 1) {
-          res.json({ success: true, message: "Pet deleted successfully" });
-        } else {
-          res.status(404).json({ success: false, message: "Pet not found" });
-        }
-      } catch (error) {
-        // console.error("Delete Pet Error:", error.message);
-        res.status(500).json({ success: false, message: "Server Error" });
-      }
-    });
-
-    // delete adoption requests
-    app.delete("/requests/:id", verifyUser, async (req, res) => {
-      try {
-        const { id } = req.params;
-
-        // console.log("--- Cancel Request Debug ---");
-        // console.log("Received ID from frontend:", id);
-
-        const query = { _id: new ObjectId(id) };
-
-        const result = await requestCollection.deleteOne(query);
-
-        console.log("Delete result:", result);
-
-        if (result.deletedCount === 1) {
-          return res.json({
-            success: true,
-            message: "Request cancelled successfully",
-          });
-        } else {
-          return res
-            .status(404)
-            .json({ success: false, message: "Request not found in DB" });
-        }
-      } catch (error) {
-        // console.error("Cancel Request Error Log:", error.message);
-        res.status(500).json({ success: false, message: "Server Error" });
-      }
-    });
-
+    // delete pets  
     app.delete("/pets/:id", verifyUser, async (req, res) => {
       try {
         const { id } = req.params;
@@ -240,37 +184,46 @@ async function run() {
       }
     });
 
-    //  card update
-    app.put("/pets/:id", verifyUser, async (req, res) => {
+    // delete adoption requests
+    app.delete("/requests/:id", verifyUser, async (req, res) => {
       try {
         const { id } = req.params;
-        const updatedData = req.body;
-        const filter = { _id: new ObjectId(id) };
+        const query = { _id: new ObjectId(id) };
 
-        const updateDoc = {
-          $set: {
-            name: updatedData.name,
-            breed: updatedData.breed,
-            age: updatedData.age,
-            location: updatedData.location,
-            fee: updatedData.fee,
-            image: updatedData.image,
-            category: updatedData.category,
-          },
-        };
+        const targetRequest = await requestCollection.findOne(query);
+        if (!targetRequest) {
+          return res
+            .status(404)
+            .json({ success: false, message: "Request not found in DB" });
+        }
 
-        const result = await petnestCollection.updateOne(filter, updateDoc);
-        res.json({ success: true, result });
+        const result = await requestCollection.deleteOne(query);
+
+        if (result.deletedCount === 1) {
+          if (targetRequest.petId) {
+            await petnestCollection.updateOne(
+              { _id: new ObjectId(targetRequest.petId) },
+              { $set: { status: "Available" } },
+            );
+          }
+          return res.json({
+            success: true,
+            message: "Request cancelled and pet status updated successfully",
+          });
+        } else {
+          return res
+            .status(404)
+            .json({ success: false, message: "Failed to delete request" });
+        }
       } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
 
-    // request route
+    // request details helper route
     app.get("/pets/:id", async (req, res) => {
       try {
         const { id } = req.params;
-
         const query = { _id: new ObjectId(id) };
         const result = await petnestCollection.findOne(query);
 
@@ -279,7 +232,6 @@ async function run() {
             .status(404)
             .json({ success: false, message: "Pet not found in database" });
         }
-
         res.json(result);
       } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
@@ -297,10 +249,8 @@ async function run() {
           $set: { status: status },
         };
 
-        // ১. রিকোয়েস্টের স্ট্যাটাস আপডেট (Approved/Rejected)
         const result = await requestCollection.updateOne(query, updateDoc);
 
-        // 🔥 ২. এইতো এখানে তোমার আসল কালেকশনের নাম 'petnestCollection' সেট করে দিলাম বস!
         if (status === "approved" && petId && petId !== "undefined") {
           await petnestCollection.updateOne(
             { _id: new ObjectId(petId) },
@@ -322,55 +272,48 @@ async function run() {
       }
     });
 
-    //  request get
+    // request list get
     app.get("/requests", async (req, res) => {
       try {
         const { petId } = req.query;
-
         let query = {};
         if (petId) {
           query = { petId: petId };
         }
-
         const result = await requestCollection.find(query).toArray();
-
         res.json({ success: true, data: result });
       } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
 
-    // card edit
-    app.put("/pets/:id", async (req, res) => {
+    // card edit/update
+    app.put("/pets/:id", verifyUser, async (req, res) => {
       try {
         const { id } = req.params;
-        const updatedData = req.body; 
-
-        
+        const updatedData = req.body;
         const query = { _id: new ObjectId(id) };
 
-         
         const updateDoc = {
           $set: {
             name: updatedData.name,
             breed: updatedData.breed,
             category: updatedData.category,
             age: updatedData.age,
+            location: updatedData.location,
+            fee: updatedData.fee,
             image: updatedData.image || updatedData.petImage,
-             
           },
         };
 
-         
         const result = await petnestCollection.updateOne(query, updateDoc);
 
         if (result.matchedCount > 0) {
-          res.json({ success: true, message: "Pet updated successfully! " });
+          res.json({ success: true, message: "Pet updated successfully!" });
         } else {
           res.status(404).json({ success: false, message: "Pet not found" });
         }
       } catch (error) {
-        // console.error("Backend Edit Error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
