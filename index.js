@@ -27,7 +27,7 @@ const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"));
 
 const verifyUser = async (req, res, next) => {
   const authHeader = req?.headers?.authorization;
-  console.log("➡️ Received Auth Header:", authHeader);
+  // console.log(" Received Auth Header:", authHeader);
 
   if (!authHeader) {
     console.log(" No Auth Header found! Setting fallback user.");
@@ -67,7 +67,6 @@ async function run() {
 
     const db = client.db("petnest");
     const petnestCollection = db.collection("pets");
-
     const requestCollection = db.collection("adoption_requests");
 
     // Get all pets data
@@ -111,12 +110,14 @@ async function run() {
 
         const newRequest = {
           petId: requestData.petId,
+          petName: requestData.petName, // 🎯 ফ্রন্টএন্ড থেকে আসা পেটের নাম যোগ হলো
+          pickupDate: requestData.pickupDate, // 🎯 ফ্রন্টএন্ড থেকে আসা পিকআপ ডেট যোগ হলো
           requesterPhone: requestData.requesterPhone,
           requesterAddress: requestData.requesterAddress,
           message: requestData.message,
           requesterEmail: loggedInUser.email,
           requesterName: loggedInUser.name,
-          status: "Pending",
+          status: "pending", // 🎯 রিকোয়ারমেন্টের সাথে মিলিয়ে ছোট হাতের "pending" রাখা ভালো
           createdAt: new Date(),
         };
 
@@ -175,8 +176,7 @@ async function run() {
       }
     });
 
-    // delete
-
+    // delete pets
     app.delete("/pets/:id", verifyUser, async (req, res) => {
       try {
         const { id } = req.params;
@@ -190,6 +190,99 @@ async function run() {
         }
       } catch (error) {
         // console.error("Delete Pet Error:", error.message);
+        res.status(500).json({ success: false, message: "Server Error" });
+      }
+    });
+
+    // delete adoption requests
+    app.delete("/requests/:id", verifyUser, async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        // console.log("--- Cancel Request Debug ---");
+        // console.log("Received ID from frontend:", id);
+
+        const query = { _id: new ObjectId(id) };
+
+        const result = await requestCollection.deleteOne(query);
+
+        console.log("Delete result:", result);
+
+        if (result.deletedCount === 1) {
+          return res.json({
+            success: true,
+            message: "Request cancelled successfully",
+          });
+        } else {
+          return res
+            .status(404)
+            .json({ success: false, message: "Request not found in DB" });
+        }
+      } catch (error) {
+        // console.error("Cancel Request Error Log:", error.message);
+        res.status(500).json({ success: false, message: "Server Error" });
+      }
+    });
+
+    app.delete("/pets/:id", verifyUser, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const query = { _id: new ObjectId(id) };
+        const result = await petnestCollection.deleteOne(query);
+
+        if (result.deletedCount === 1) {
+          res.json({ success: true, message: "Pet removed successfully!" });
+        } else {
+          res.status(404).json({ success: false, message: "Pet not found" });
+        }
+      } catch (error) {
+        res.status(500).json({ success: false, message: "Server Error" });
+      }
+    });
+
+    //  card update
+    app.put("/pets/:id", verifyUser, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const updatedData = req.body;
+        const filter = { _id: new ObjectId(id) };
+
+        const updateDoc = {
+          $set: {
+            name: updatedData.name,
+            breed: updatedData.breed,
+            age: updatedData.age,
+            location: updatedData.location,
+            fee: updatedData.fee,
+            image: updatedData.image,
+            category: updatedData.category,
+          },
+        };
+
+        const result = await petnestCollection.updateOne(filter, updateDoc);
+        res.json({ success: true, result });
+      } catch (error) {
+        res.status(500).json({ success: false, message: "Server Error" });
+      }
+    });
+
+    // request route 
+    app.get("/pets/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+         
+        const query = { _id: new ObjectId(id) };
+        const result = await petnestCollection.findOne(query);  
+
+        if (!result) {
+          return res
+            .status(404)
+            .json({ success: false, message: "Pet not found in database" });
+        }
+
+        res.json(result);
+      } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
       }
     });
